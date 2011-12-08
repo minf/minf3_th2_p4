@@ -1,0 +1,7 @@
+
+nametype Id = {0,1,2,3}
+nametype Timeslots = {1..10}
+channel set idle, set waiting, set active, start task : Id
+channel request: Id.Timeslots
+channel clock
+
