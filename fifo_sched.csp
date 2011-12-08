@@ -17,23 +17,25 @@ TASK(id, status, time) =
   status==active & set_idle?id -> TASK(id, idle, time) 
 
 SCHED(waitingids, waitingtimes) = 
-              request?id?time -> set_waiting!id -> SCHED_INSERT(id, waitingids, waitingtimes ^ <time>) []
-              (
-                #waitingids == 0 & clock -> SCHED(waitingids, waitingtimes) |~|
-                #waitingids > 0 & SCHED_HASWAITING(waitingids, waitingtimes)
-              )
+      request?id?time -> set_waiting!id -> SCHED_INSERT(waitingids ^ <id>, waitingtimes ^ <time>) []
+      if #waitingids==0
+       then clock -> SCHED(waitingids, waitingtimes)
+       else clock -> SCHED_HASWAITING(waitingids, waitingtimes)
 
-SCHED_INSERT(id, tailwaitingids, waitingtimes) =
-              #tailwaitingids == 0 & set_active!id -> SCHED(<id>, waitingtimes) |~|
-              #tailwaitingids > 0 & SCHED(tailwaitingids ^ <id>, waitingtimes)
+SCHED_INSERT(waitingids, waitingtimes) =
+  if #waitingids==1
+    then set_active!head(waitingids) -> SCHED(waitingids, waitingtimes)
+    else SCHED(waitingids, waitingtimes)
 
 SCHED_HASWAITING(waitingids, waitingtimes) =
-              head(waitingtimes) == 0 & clock -> set_idle!head(waitingids) -> SCHED_NEXT(tail(waitingids), tail(waitingtimes)) |~|
-              head(waitingtimes) > 0 & clock -> SCHED(waitingids, <head(waitingtimes)-1> ^ tail(waitingtimes))
+  if head(waitingtimes)==0
+    then set_idle!head(waitingids) -> SCHED_NEXT(tail(waitingids), tail(waitingtimes))
+    else SCHED(waitingids, <head(waitingtimes)-1> ^ tail(waitingtimes))
 
 SCHED_NEXT(waitingids, waitingtimes) =
-              #waitingids == 0 & SCHED(waitingids, waitingtimes) |~|
-              #waitingids > 0 & set_active!head(waitingids) -> SCHED(waitingids, waitingtimes)
+  if #waitingids==0
+    then SCHED(waitingids, waitingtimes)
+    else set_active!head(waitingids) -> SCHED(waitingids, waitingtimes)
 
 CLOCK = clock -> CLOCK
 
