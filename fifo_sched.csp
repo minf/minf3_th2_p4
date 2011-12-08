@@ -11,16 +11,13 @@ channel clock
 -- processes
 
 TASK(id, status, time) =
-  status==idle & start_task?id ->   request!id!time -> TASK(id, eager, time) []
+  status==idle & request!id!time -> TASK(id, eager, time) []
   status==eager & set_waiting?id -> TASK(id, waiting, time) []
   status==waiting & set_active?id -> TASK(id, active, time) []
-  status==active & set_idle?id -> TASK(id, active, time)
-
-TASK_EAGER(id, time) =
-  request!id!time -> TASK(id, eager, time)
+  status==active & set_idle?id -> TASK(id, idle, time)
 
 SCHED(waitingids, waitingtimes) = 
-              request?id?time -> SCHED_SETWAITING(waitingids ^ <id>, waitingtimes ^ <time>) []
+              request?id?time -> set_waiting!id -> SCHED(waitingids ^ <id>, waitingtimes ^ <time>) []
               #waitingids == 0 & clock -> SCHED(waitingids, waitingtimes) []
               #waitingids > 0 & SCHED_HASWAITING(waitingids, waitingtimes) 
                
@@ -28,8 +25,8 @@ SCHED_HASWAITING(waitingids, waitingtimes) =
               head(waitingtimes) == 0 & clock -> set_idle!head(waitingids) -> SCHED_NEXT(tail(waitingids), tail(waitingtimes)) []
               head(waitingtimes) > 0 & clock -> SCHED(waitingids, <head(waitingtimes)-1> ^ tail(waitingtimes))
 
-SCHED_SETWAITING(waitingids, waitingtimes) =
-              set_waiting!head(waitingids) -> SCHED(waitingids, waitingtimes)
+--SCHED_SETWAITING(waitingids, waitingtimes) =
+--              set_waiting!head(waitingids) -> SCHED(waitingids, waitingtimes)
 
 SCHED_NEXT(waitingids, waitingtimes) =
               #waitingids == 0 & SCHED(waitingids, waitingtimes) |~|
@@ -38,11 +35,16 @@ SCHED_NEXT(waitingids, waitingtimes) =
 CLOCK = clock -> CLOCK
 
 SYS = (
-        (SCHED(<>, <>) [|{| clock |}|] CLOCK)
+      (
+        SCHED(<>, <>)
           [|{| start_task, set_waiting, set_active, set_idle, request |}|]
-        (||| tid:Id @ TASK(tid, idle, 5))
+        TASK(1, idle, 5)
       ) [|{| start_task |}|]
-      (||| tid:Id @ start_task!tid -> SKIP)
+      START(1)
+      )
+      [|{| clock |}|] CLOCK
+
+START(id) = start_task!id -> SKIP
 
 -- tests
 TEST = start_task.1 -> start_task.3 -> SKIP
