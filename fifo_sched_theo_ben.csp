@@ -1,4 +1,6 @@
--- channels and types
+------------------------
+-- channels and types --
+------------------------
 
 datatype state = idle|eager|waiting|active
 
@@ -9,53 +11,79 @@ channel set_idle, set_waiting, set_active, start_task : Id
 channel request: Id.Timeslots
 channel clock
 
--- processes
+---------------
+-- processes --
+---------------
 
+-- task with id 0 is only inherent in state 'idle' and 'active' (the dummy task)
 TASK(id, duration, state) =
-     ( (state == idle and id != 0) & start_task?id -> request!id!duration -> TASK(id, duration, eager))
-  [] ( (state == idle and id == 0) & start_task?id -> TASK(id, duration, active))
-  [] ( state == eager & set_waiting?id -> TASK(id, duration, waiting))
-  [] ( state == waiting & set_active?id -> TASK(id, duration, active))
-  [] ( state == active & set_idle?id -> TASK(id, duration, idle))
+     ((state == idle and id != 0) & start_task?id ->
+       request!id!duration -> TASK(id, duration, eager))
+  [] ((state == idle and id == 0) & start_task?id -> TASK(id, duration, active))
+  [] (state == eager & set_waiting?id -> TASK(id, duration, waiting))
+  [] (state == waiting & set_active?id -> TASK(id, duration, active))
+  [] (state == active & set_idle?id -> TASK(id, duration, idle))
 
 SCHED(active_id, time_left, waiting_ids, waiting_durations) =
-  ( -- add to waiting_list
+  (
+    -- on request event add task to waiting_list
     request?id.duration -> set_waiting!id ->
     SCHED(active_id, time_left, waiting_ids^<id>, waiting_durations^<duration>)
-  []
-  ( clock -> 
+  )
+    []
+  (
+    -- on clock event either decrement timer or {de,}schedule {active,next} task
+    clock -> 
+  
     if (time_left > 0) then -- active task hasn't finished
       SCHED(active_id, time_left-1, waiting_ids, waiting_durations)
-    else -- deschedule task and schedule next task
+  
+    else (
+      -- deschedule active task and schedule next task
       set_idle!active_id ->
-      if (length(waiting_list_id) > 0) then
-	set_active!head(waiting_ids)
-        SCHED(head(waiting_ids), head(waiting_durations), tail(waiting_ids), tail(waiting_durations))
-      else
-       	set_active!0
-	SCHED(0, 0, waiting_ids, waiting_durations)
+      if (#waiting_list_id > 0) then (
+        -- longest waiting task becomes active
+        set_active!head(waiting_ids) ->
+        SCHED(head(waiting_ids), head(waiting_durations),
+              tail(waiting_ids), tail(waiting_durations))
+      ) else (
+        -- dummy task becomes active
+        set_active!0 ->
+        SCHED(0, 0, waiting_ids, waiting_durations)
+      )
+    )
   )
 
 CLOCK = clock -> CLOCK
 
 SYS =
-  ( SCHED [| {| clock |} |] CLOCK)
-    [| {| set_idle, set_waiting, set_active, start_task |} |]
+  ( 
+    SCHED(0, 0, <>, <>)
+      [| {| clock |} |]
+    CLOCK
+  )
+    [| {| set_idle, set_waiting, set_active, request |} |]
   (
-    (
-      IDLE_TASK(active)
-      |||
-      TASK(1, 3, idle)
-      |||
-      TASK(2, 5, idle)
-      |||
-      TASK(3, 6, idle)
-    )
-    |||
-    RUN
+    SPAWN_TASKS
+      [| {| start_task |} |]
+    START_TASKS
   )
 
-RUN = start_task(0) -> start_task(1) -> start_task(2) -> start_task(3)
+SPAWN_TASKS = TASK(0, 10, active) ||| TASK(1, 3, idle)
+              ||| TASK(2, 5, idle) ||| TASK(3, 6, idle)
+--SPAWN_TASKS = TASK(0, 10, active) ||| TASK(1, 3, idle)
 
--- tests
+START_TASKS = ||| id:Id @ start_task!id -> STOP
 
+-----------
+-- tests --
+-----------
+
+TEST = start_task.0 -> start_task.1 -> start_task.2 -> start_task.3 -> STOP
+T = start_task.0 -> start_task.1 -> STOP
+
+S = SYS \ {| set_idle, set_waiting, set_active, request, clock |}
+
+assert S [T= T
+assert S [T= TEST
+assert SYS [T= TEST
