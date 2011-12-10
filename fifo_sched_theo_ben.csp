@@ -11,46 +11,67 @@ channel set_idle, set_waiting, set_active, start_task : Id
 channel request: Id.Timeslots
 channel clock
 
+-- indicating the current state of a task
+channel cur: Id.state
+
 ---------------
 -- processes --
 ---------------
 
 -- task with id 0 is only inherent in state 'idle' and 'active' (the dummy task)
-TASK(id, duration, state) =
-     ((state == idle and id != 0) & start_task?id ->
-       request!id!duration -> TASK(id, duration, eager))
-  [] ((state == idle and id == 0) & start_task?id -> TASK(id, duration, active))
-  [] (state == eager & set_waiting?id -> TASK(id, duration, waiting))
-  [] (state == waiting & set_active?id -> TASK(id, duration, active))
-  [] (state == active & set_idle?id -> TASK(id, duration, idle))
+TASK(id, duration, state) = cur.id.state -> (
+    state == idle and id != 0 & start_task?id -> request!id!duration -> TASK(id, duration, eager)
+    []
+    state == idle and id == 0 & set_active?id -> TASK(id, duration, active)
+    []
+    state == eager & set_waiting?id -> TASK(id, duration, waiting)
+    []
+    state == waiting & set_active?id -> TASK(id, duration, active)
+    []
+    state == active & set_idle?id -> TASK(id, duration, idle)
+  )
 
 SCHED(active_id, time_left, waiting_ids, waiting_durations) =
-  (
-    -- on request event add task to waiting_list
+
+  SCHED_REQUEST(active_id, time_left, waiting_ids, waiting_durations)
+  []
+  SCHED_CLOCK(active_id, time_left, waiting_ids, waiting_durations)
+ 
+-- on request-event add task to waiting_list
+SCHED_REQUEST(active_id, time_left, waiting_ids, waiting_durations) =
     request?id.duration -> set_waiting!id ->
-    SCHED(active_id, time_left, waiting_ids^<id>, waiting_durations^<duration>)
-  )
-    []
-  (
-    -- on clock event either decrement timer or {de,}schedule {active,next} task
-    clock -> 
-  
-    if (time_left > 0) then -- active task hasn't finished
-      SCHED(active_id, time_left-1, waiting_ids, waiting_durations)
-  
-    else (
-      -- deschedule active task and schedule next task
-      set_idle!active_id ->
-      if (#waiting_list_id > 0) then (
-        -- longest waiting task becomes active
-        set_active!head(waiting_ids) ->
-        SCHED(head(waiting_ids), head(waiting_durations),
-              tail(waiting_ids), tail(waiting_durations))
-      ) else (
-        -- dummy task becomes active
-        set_active!0 ->
-        SCHED(0, 0, waiting_ids, waiting_durations)
-      )
+
+--    -- doesn't work :-/
+--    SCHED(active_id, time_left, waiting_ids^<id>, waiting_durations^<duration>)
+
+--    -- limit queue length for fdr2; doesn't work, too :-(
+--    (
+--      #waiting_ids <= 3 & SCHED(active_id, time_left, waiting_ids^<id>, waiting_durations^<duration>)
+--      []
+--      #waiting_ids > 3 & SCHED(active_id, time_left, waiting_ids, waiting_durations)
+--    )
+
+    STOP
+
+-- on clock-event either decrement timer or {de,}schedule {active,next} task
+SCHED_CLOCK(active_id, time_left, waiting_ids, waiting_durations) = 
+  clock ->
+
+  if (time_left > 0) then -- active task hasn't finished
+    SCHED(active_id, time_left-1, waiting_ids, waiting_durations)
+ 
+  else (
+    -- deschedule active task and schedule next task
+    set_idle!active_id ->
+    if (#waiting_ids > 0) then (
+      -- longest waiting task becomes active
+      set_active!head(waiting_ids) ->
+      SCHED(head(waiting_ids), head(waiting_durations),
+            tail(waiting_ids), tail(waiting_durations))
+    ) else (
+      -- dummy task becomes active
+      set_active!0 ->
+      SCHED(0, 0, waiting_ids, waiting_durations)
     )
   )
 
@@ -71,19 +92,93 @@ SYS =
 
 SPAWN_TASKS = TASK(0, 10, active) ||| TASK(1, 3, idle)
               ||| TASK(2, 5, idle) ||| TASK(3, 6, idle)
---SPAWN_TASKS = TASK(0, 10, active) ||| TASK(1, 3, idle)
 
-START_TASKS = ||| id:Id @ start_task!id -> STOP
+START_TASKS = ||| id:{1..3} @ start_task!id -> STOP
 
------------
--- tests --
------------
+
+-------------
+---- tests --
+-------------
 
 TEST = start_task.0 -> start_task.1 -> start_task.2 -> start_task.3 -> STOP
 T = start_task.0 -> start_task.1 -> STOP
 
-S = SYS \ {| set_idle, set_waiting, set_active, request, clock |}
+S = SYS \ {| set_idle, set_waiting, set_active, request, clock, cur |}
 
-assert S [T= T
-assert S [T= TEST
-assert SYS [T= TEST
+--assert S [T= T
+--assert S [T= TEST
+--assert SYS [T= TEST
+
+------
+-- T0: test if TASK with id=0 works (happy path)
+
+-- pseudo scheduler
+T0_SCHED = set_idle.0 -> set_active.0 -> set_idle.0 -> set_active.0 -> STOP
+
+T0_SYS = TASK(0,10,active)
+           [| {| set_idle, set_active |} |]
+         T0_SCHED
+
+T0_TEST = cur.0.active ->
+          set_idle.0   -> cur.0.idle ->
+          set_active.0 -> cur.0.active ->
+          set_idle.0   -> cur.0.idle ->
+          set_active.0 -> cur.0.active ->
+          STOP
+
+--assert T0_SYS [T= T0_TEST
+
+------
+-- TN: test if TASK with id!=0 works (happy path)
+
+-- pseudo scheduler
+TN_SCHED = request?1.3 -> set_waiting!1 -> set_active!1 -> set_idle!1 -> STOP
+
+TN_RUN = start_task!1 -> STOP
+
+TN_SYS = ( TASK(1,3,idle) [| {| start_task |} |] TN_RUN )
+           [| {| set_idle, set_waiting, set_active, request |} |]
+         TN_SCHED
+
+TN_TEST = cur.1.idle ->
+          start_task.1 -> request.1.3 -> cur.1.eager ->
+          set_waiting.1 -> cur.1.waiting ->
+          set_active.1 -> cur.1.active ->
+          set_idle.1   -> cur.1.idle ->
+          STOP
+
+-- assert TN_SYS [T= TN_TEST
+
+-----------
+-- SCHED_1: test if SCHED works without tasks
+
+SCHED_1 = SCHED(0,0,<>,<>)
+            [| {| clock, set_idle, set_active |} |]
+          SCHED_1_TEST
+
+SCHED_1_TEST = clock -> set_idle.0 -> set_active.0 ->
+             clock -> set_idle.0 -> set_active.0 ->
+             STOP
+
+-- only works with "request?id.duration -> set_waiting!id -> STOP" in SCHED_REQUEST
+assert SCHED_1 [T= SCHED_1_TEST
+
+-- if queue length limited:
+--
+-- /Starting CSP compiler
+--  Ready
+-- /Starting timer
+-- Starting compilation
+-- 
+-- Starting...
+-- Compiling...
+-- Reading...
+-- Started: 84 Finished: 32 Transitions: 100
+-- Started: 125 Finished: 64 Transitions: 200
+-- ...
+-- Started: 107168 Finished: 86738 Transitions: 3671700
+-- Started: 107170 Finished: 86738 Transitions: 3671800
+-- readEventMap failed
+-- Error during compilation
+-- Took 626(0+0) seconds
+-- Server: : failed to compile ISM
