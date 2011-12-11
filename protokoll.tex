@@ -18,13 +18,82 @@
 
 \begin{enumerate}[a)]
 
-\item $ a \then (P_1 \extchoice P_2) =_T (a \then P_1) \extchoice (a \then P_2) $
+% 1.1 a)
+\item{
+  $ a \then (P_1 \intchoice P_2) =_T (a \then P_1) \intchoice (a \then P_2) $
 
-\item $ Skip \interrupt P =_T Skip \extchoice P $
+  Gleichheit von Prozessen im Trace-Modell:\\
+  $a \then (P_1 \intchoice P_2) =_T (a \then P_1) \intchoice (a \then P_2) \\
+  \equiv traces(a \then (P_1 \intchoice P_2)) = traces((a \then P_1) \intchoice (a \then P_2))$ \\
 
+  $\rightarrow$ zu zeigen: $traces(Skip \interrupt P) = traces(Skip \intchoice P)$
+
+  \begin{align*}
+    traces(a \then (P_1 \intchoice P_2)) &= \{ \langle \rangle \} \cup \{ \langle a \rangle \cat tr | tr \in traces(P_1 \intchoice P_2)\} & \text{Prefixing, 6.10}\\
+                                         &= \{ \langle \rangle \} \cup \{ \langle a \rangle \cat tr | tr \in traces(P_1) \cup traces(P_2)\} & \text{Choice, 6.16}\\
+                                         &= \{ \langle \rangle \} \cup \{ \langle a \rangle \cat tr | tr \in traces(P_1)\} &\text{Vereinigung von Mengen}\\
+                                         &\hspace{0.5cm}\cup \{ \langle a \rangle \cat tr | tr \in traces(P_2)\}\\
+                                         &= \{ \langle \rangle \} \cup \{ \langle a \rangle \cat tr | tr \in traces(P_1)\} &\text{Idempotenz von Mengen}\\
+                                         &\hspace{0.5cm}\cup \{ \langle \rangle \} \cup \{ \langle a \rangle \cat tr | tr \in traces(P_2)\}\\
+                                         &= traces(a \then P_1) \cup traces(a \then P_2) &\text{Prefixing, 6.10}\\
+                                         &= traces((a \then P_1) \intchoice (a \then P_2)) &\text{(Internal-)Choice, 6.16}\\
+  \end{align*}
+  \flushright{\qedsymbol}\\
+}
+
+% 1.1 b)
+\item{
+  $ Skip \interrupt P =_T Skip \intchoice P $
+
+  Gleichheit von Prozessen im Trace-Modell:\\
+  $Skip \interrupt P =_T Skip \intchoice P \hspace{10pt} \equiv \hspace{10pt} traces(Skip \interrupt P) = traces(Skip \intchoice P) $ \\
+
+  $\rightarrow$ zu zeigen: $traces(Skip \interrupt P) = traces(Skip \intchoice P)$
+
+  \begin{align*}
+    traces(Skip \interrupt P) &= traces(Skip) \cup \{tr_1 \cat tr_2 | tr_1 \in traces(Skip) \wedge \tick \notin \sigma(tr_1) & \text{Interrupt, 6.53}\\
+                              &\hspace{4.9cm} \wedge tr_2 \in traces(P) \}\\
+                              &= \{ \langle \rangle, \langle \tick \rangle \} \cup \{ tr_1 \cat tr_2 | tr_1 \in \{ \langle \rangle, \langle \tick \rangle \} \wedge \tick \notin \sigma(tr_1) & \text{Skip, 6.4}\\
+                              &\hspace{4.9cm} \wedge tr_2 \in traces(P) \}\\
+                              &|NB_1: tr_1 \in \{ \langle \rangle, \langle \tick \rangle \} \wedge \tick \notin \sigma(tr_1) \hspace{10pt} \Leftrightarrow \hspace{10pt} tr_1 = \{ \langle \rangle \}\\
+                              &|NB_2: \{a \cat b\} = \{ b \} \Leftrightarrow a = \{ \langle \rangle \}\\
+                              &= \{ \langle \rangle, \langle \tick \rangle \} \cup \{ \langle \rangle \cat tr_2 | tr_2 \in traces(P) \} & NB_1, NB_2\\
+                              &= \{ \langle \rangle, \langle \tick \rangle \} \cup traces(P) & NB_2\\
+                              &= traces(Skip) \cup traces(P) & \text{Skip, 6.4}\\
+                              &= traces(Skip \intchoice P) & \text{Choice, 6.14}
+  \end{align*}
+
+  \flushright{\qedsymbol}\\
+}
 \end{enumerate}
 
 \section{CSP Laws anwenden}
+
+$
+P1 = ((a \then c \then Skip) \extchoice (b \then c \then Skip))\\
+P2 = (d \then Skip)\\
+P3 = c \then d \then Skip
+$
+
+\begin{align*}
+  \text{zu zeigen: } (P1; P2) \setminus \{a,b\} =_T P3
+\end{align*}
+
+\begin{align*}
+  (P1; P2) \setminus \{a,b\} &= (((a \then c \then Skip) \extchoice (b \then c \then Skip)); (d \then Skip)) \setminus \{a,b\}& \\
+         &=_T ((a \then c \then Skip) \intchoice (b \then c \then Skip); (d \then Skip)) \setminus \{a,b\} &\text{choice-equiv$_T$, 8.15}\\
+         &= (a \then c \then Skip) \setminus \{a,b\} \intchoice (b \then c \then Skip) \setminus \{a,b\}; &\intchoice\text{-hide-dist$_T$, 8.81, NB}\\
+         &\hspace{0.5cm}(d \then Skip) \setminus \{a,b\}\\
+         &=(c \then Skip) \setminus \{a,b\} \intchoice (c \then Skip) \setminus \{a,b\}; &\text{3 x hide-step$_1$, 8.79}\\
+         &\hspace{0.5cm} d \then Skip \setminus \{a,b\}\\
+         &=c \then Skip \setminus \{a,b\} \intchoice c \then Skip \setminus \{a,b\}; &\text{2 x hide-step$_1$, 8.79}\\
+         &\hspace{0.5cm} d \then Skip \setminus \{a,b\}\\
+         &= (c \then Skip) \intchoice (c \then Skip); d \then Skip &\text{3 x hide-term, 8.85}\\
+         &= c \then Skip; d \then Skip & \extchoice\text{-idem, 8.16}\\
+         &= c \then d \then Skip & \text{;-unit-l, 8.94}
+\end{align*}
+
+\flushright{\qedsymbol}\\
 
 \chapter{Failures Semantik}
 
