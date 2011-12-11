@@ -26,7 +26,7 @@
   $a \then (P_1 \intchoice P_2) =_T (a \then P_1) \intchoice (a \then P_2) \\
   \equiv traces(a \then (P_1 \intchoice P_2)) = traces((a \then P_1) \intchoice (a \then P_2))$ \\
 
-  $\rightarrow$ zu zeigen: $traces(Skip \interrupt P) = traces(Skip \intchoice P)$
+  $\rightarrow$ zu zeigen: $traces(a \then (P_1 \intchoice P_2)) = traces((a \then P_1) \intchoice (a \then P_2))$
 
   \begin{align*}
     traces(a \then (P_1 \intchoice P_2)) &= \{ \langle \rangle \} \cup \{ \langle a \rangle \cat tr | tr \in traces(P_1 \intchoice P_2)\} & \text{Prefixing, 6.10}\\
@@ -60,7 +60,7 @@
                               &= \{ \langle \rangle, \langle \tick \rangle \} \cup \{ \langle \rangle \cat tr_2 | tr_2 \in traces(P) \} & NB_1, NB_2\\
                               &= \{ \langle \rangle, \langle \tick \rangle \} \cup traces(P) & NB_2\\
                               &= traces(Skip) \cup traces(P) & \text{Skip, 6.4}\\
-                              &= traces(Skip \intchoice P) & \text{Choice, 6.14}
+                              &= traces(Skip \intchoice P) & \text{Choice, 6.14}\\
   \end{align*}
 
   \flushright{\qedsymbol}\\
@@ -90,7 +90,8 @@ $
          &\hspace{0.5cm} d \then Skip \setminus \{a,b\}\\
          &= (c \then Skip) \intchoice (c \then Skip); d \then Skip &\text{3 x hide-term, 8.85}\\
          &= c \then Skip; d \then Skip & \extchoice\text{-idem, 8.16}\\
-         &= c \then d \then Skip & \text{;-unit-l, 8.94}
+         &= c \then d \then Skip & \text{;-unit-l, 8.94}\\
+         &= P3
 \end{align*}
 
 \flushright{\qedsymbol}\\
