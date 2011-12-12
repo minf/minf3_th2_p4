@@ -23,8 +23,6 @@
   $ a \then (P_1 \intchoice P_2) =_T (a \then P_1) \intchoice (a \then P_2) $
 
   Gleichheit von Prozessen im Trace-Modell:\\
-  $a \then (P_1 \intchoice P_2) =_T (a \then P_1) \intchoice (a \then P_2) \\
-  \equiv traces(a \then (P_1 \intchoice P_2)) = traces((a \then P_1) \intchoice (a \then P_2))$ \\
 
   $\rightarrow$ zu zeigen: $traces(a \then (P_1 \intchoice P_2)) = traces((a \then P_1) \intchoice (a \then P_2))$
 
@@ -46,7 +44,6 @@
   $ Skip \interrupt P =_T Skip \intchoice P $
 
   Gleichheit von Prozessen im Trace-Modell:\\
-  $Skip \interrupt P =_T Skip \intchoice P \hspace{10pt} \equiv \hspace{10pt} traces(Skip \interrupt P) = traces(Skip \intchoice P) $ \\
 
   $\rightarrow$ zu zeigen: $traces(Skip \interrupt P) = traces(Skip \intchoice P)$
 
